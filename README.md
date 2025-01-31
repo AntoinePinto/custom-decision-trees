@@ -6,7 +6,9 @@
   <br>
 </h1>
 
-![Static Badge](https://img.shields.io/badge/python->3.7-blue)
+![Static Badge](https://img.shields.io/badge/python->=3.10-blue)
+![GitHub License](https://img.shields.io/github/license/AntoinePinto/StringPairFinder)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/custom-tree-classifier)
 ![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)
 
 </div>
@@ -16,7 +18,7 @@
 This flexibility is particularly useful in "cost-dependent" scenarios.
 
 <p align="center">
-  <img src="https://github.com/AntoinePinto/custom-decision-tree/blob/master/media/illustration.jpg?raw=true" alt="drawing" width="500"/>
+  <img src="https://github.com/AntoinePinto/custom-tree-classifier/blob/master/media/illustration.jpg?raw=true" alt="drawing" width="500"/>
 </p>
 
 ## Examples of use
@@ -35,7 +37,7 @@ Here are some examples of how custom splitting criteria can be beneficial:
 ### Installation
 
 ```
-pip install custom_tree_classifier
+pip install custom-tree-classifier
 ```
 
 ### Define your metric
@@ -47,7 +49,7 @@ Example of a class with the Gini index :
 ```python
 import numpy as np
 
-from custom_tree.metrics import MetricBase
+from custom_tree_classifier.metrics import MetricBase
 
 class Gini(MetricBase):
 
@@ -83,6 +85,8 @@ class Gini(MetricBase):
 Once you have instantiated the model with your custom metric, all you have to do is use the `.fit` and `.predict_proba` methods:
 
 ```python
+from custom_tree_classifier import CustomRandomForestClassifier
+
 model = CustomDecisionTreeClassifier(
     max_depth=3,
     metric=Gini
