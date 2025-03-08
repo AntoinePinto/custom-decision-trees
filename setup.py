@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="custom-tree-classifier",
-    version="1.0.2",
+    version="1.0.3",
     description=(
         "A package for building decision trees and random forests with "
         "custom splitting criteria."
