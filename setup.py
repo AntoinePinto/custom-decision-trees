@@ -4,8 +4,8 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
-    name="custom-tree-classifier",
-    version="1.0.3",
+    name="custom_tree_classifier",
+    version="1.0.4",
     description=(
         "A package for building decision trees and random forests with "
         "custom splitting criteria."

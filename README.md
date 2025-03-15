@@ -37,7 +37,7 @@ Here are some examples of how custom splitting criteria can be beneficial:
 ### Installation
 
 ```
-pip install custom-tree-classifier
+pip install custom_tree_classifier
 ```
 
 ### Define your metric
