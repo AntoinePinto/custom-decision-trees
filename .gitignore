@@ -1,6 +1,6 @@
 __pycache__/
 .vscode
 .venv
-custom_tree_classifier.egg-info
+custom_decision_trees.egg-info
 build
 dist

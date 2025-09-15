@@ -1,2 +1,3 @@
 [tool.ruff]
 lint.select = ["E", "F", "W", "B", "S", "I", "Q"]
+exclude = ["*.ipynb"]
