@@ -440,7 +440,7 @@ class DecisionTree:
             A list containing the count of each class.
         """
 
-        repartition = [int(np.sum(y == 0)), int(np.sum(y == 1))]
+        repartition = [int(np.sum(y == i)) for i in self.classes]
 
         return repartition
 
@@ -550,6 +550,7 @@ class DecisionTree:
             X: np.ndarray,
             y: np.ndarray,
             metric_data: np.ndarray,
+            classes: np.ndarray | None = None,
             batch_size: int = 1000,
             tqdm_func: Callable | None = None,
         ) -> None:
@@ -564,11 +565,15 @@ class DecisionTree:
             Target values.
         metric_data : np.ndarray
             Data used by the splitting metric.
+        classes: np.ndarray
+            List of possible classes
         batch_size : int, default=1000
             Batch size for parallel computation of split evaluations.
         tqdm_func : callable or None, default=None
             Optional progress bar function.
         """
+
+        self.classes = np.unique(y) if classes is None else classes
 
         min_samples_split = self.get_min_samples(param=self.min_samples_split, X=X)
         min_samples_leaf = self.get_min_samples(param=self.min_samples_leaf, X=X)
@@ -880,6 +885,8 @@ class DecisionTree:
         if x_to_predict is not None:
             x_prediction = self.predict_x(x=x_to_predict)
 
+        print(f"classes: {self.classes}")
+
         partition_id = 0
         while True:
 
@@ -1061,6 +1068,6 @@ class DecisionTree:
         ax.set_ylim(0, 1)
         ax.set_xlim(0, 1)
 
-        plt.title(title, fontsize=14, loc="left")
+        plt.title(f"{title} (classes: {self.classes})", fontsize=14, loc="left")
         plt.tight_layout()
         plt.show()
