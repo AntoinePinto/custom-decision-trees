@@ -175,6 +175,7 @@ class RandomForest:
             X=X[observations_sample,:],
             y=y[observations_sample],
             metric_data=metric_data[observations_sample],
+            classes=self.classes,
             batch_size=batch_size,
             tqdm_func=tqdm_func,
         )
@@ -219,6 +220,8 @@ class RandomForest:
 
         if np.any(np.isnan(metric_data)):
             raise ValueError("Input metric_data contains NaN values.")
+
+        self.classes = np.unique(y)
 
         max_samples = self.get_max_samples(X)
 

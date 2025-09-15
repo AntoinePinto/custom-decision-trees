@@ -49,6 +49,14 @@ $$ \Delta_{Gini} = I_{Gini} - \frac{N_L * I_{Gini_L}}{N} - \frac{N_R * I_{Gini_R
 
 At each node, the tree algorithm finds the split that minimizes $\Delta$ over all possible splits and over all features. Once the optimal split is selected, the tree is grown by recursively applying this splitting process to the resulting child nodes.
 
+## Other features
+
+*   Supports multiclass classification
+*   Supports standard decision tree parameters (max_depth, min_samples_split, max_features, n_estimators, etc.)
+*   Ability to control the number of variable splitting options when optimizing a split (i.e `nb_max_cut_options_per_var` parameter).
+*   Ability to control the maximum number of splits to be tested per node to avoid overly long calculations in multi-condition mode (i.e `nb_max_split_options_per_node` parameters)
+*   Possibility of parallelizing calculations (i.e `n_jobs` parameters)
+
 ## Usage
 
 > See `./notebooks/` folder for a complete examples.
@@ -70,43 +78,52 @@ import numpy as np
 
 from custom_decision_trees.metrics import MetricBase
 
+import numpy as np
 
-def compute_gini(
-        metric_data: np.ndarray
-    ) -> float:
+from custom_decision_trees.metrics import MetricBase
 
-    y = metric_data[:, 0]
-
-    prop0 = np.sum(y == 0) / len(y)
-    prop1 = np.sum(y == 1) / len(y)
-
-    metric = 1 - (prop0**2 + prop1**2)
-
-    return float(metric)
 
 class Gini(MetricBase):
-    """
-    A class that implements the Gini impurity metric for decision trees.
-    """
 
     def __init__(
             self,
+            n_classes: int = 2,
         ) -> None:
-        pass
+        
+        self.n_classes = n_classes
+        self.max_impurity = 1 - 1 / n_classes
+
+    def compute_gini(
+            self,
+            metric_data: np.ndarray,
+        ) -> float:
+
+        y = metric_data[:, 0]
+        
+        nb_obs = len(y)
+
+        if nb_obs == 0:
+            return self.max_impurity
+
+        props = [(np.sum(y == i) / nb_obs) for i in range(self.n_classes)]
+
+        metric = 1 - np.sum([prop**2 for prop in props])
+
+        return float(metric)
 
     def compute_metric(
             self,
             metric_data: np.ndarray,
-            mask: np.ndarray
-        ) -> tuple[float, dict]:
+            mask: np.ndarray,
+        ):
 
-        gini_parent = compute_gini(metric_data)
-        gini_side1 = compute_gini(metric_data[mask])
-        gini_side2 = compute_gini(metric_data[~mask])
+        gini_parent = self.compute_gini(metric_data)
+        gini_side1 = self.compute_gini(metric_data[mask])
+        gini_side2 = self.compute_gini(metric_data[~mask])
 
         delta = (
-            gini_parent - 
-            gini_side1 * np.mean(mask) - 
+            gini_parent -
+            gini_side1 * np.mean(mask) -
             gini_side2 * (1 - np.mean(mask))
         )
 
