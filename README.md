@@ -40,6 +40,7 @@ Example of multi-condition splitting on the Titanic dataset:
 
 *   Supports multiclass classification
 *   Supports standard decision tree parameters (max_depth, min_samples_split, max_features, n_estimators, etc.)
+*   Supports STRING type explanatory variables
 *   Ability to control the number of variable splitting options when optimizing a split (i.e `nb_max_cut_options_per_var` parameter).
 *   Ability to control the maximum number of splits to be tested per node to avoid overly long calculations in multi-condition mode (i.e `nb_max_split_options_per_node` parameters)
 *   Possibility of parallelizing calculations (i.e `n_jobs` parameters)
