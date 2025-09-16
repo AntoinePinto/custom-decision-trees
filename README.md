@@ -36,6 +36,14 @@ Example of multi-condition splitting on the Titanic dataset:
 
 ![Multi Conditional Node Splitting](https://github.com/AntoinePinto/custom-decision-trees/blob/master/media/multi-condition-splitting.png?raw=true)
 
+### Other features
+
+*   Supports multiclass classification
+*   Supports standard decision tree parameters (max_depth, min_samples_split, max_features, n_estimators, etc.)
+*   Ability to control the number of variable splitting options when optimizing a split (i.e `nb_max_cut_options_per_var` parameter).
+*   Ability to control the maximum number of splits to be tested per node to avoid overly long calculations in multi-condition mode (i.e `nb_max_split_options_per_node` parameters)
+*   Possibility of parallelizing calculations (i.e `n_jobs` parameters)
+
 ## Reminder on splitting criteria
 Splitting in a decision tree is achieved by **optimizing a metric**. For example, Gini optimization consists in **maximizing** the $\Delta_{Gini}$ :
 
@@ -48,14 +56,6 @@ $$ I_{Gini} = 1 - p_0^2 - p_1^2 $$
 $$ \Delta_{Gini} = I_{Gini} - \frac{N_L * I_{Gini_L}}{N} - \frac{N_R * I_{Gini_R}}{N} $$
 
 At each node, the tree algorithm finds the split that minimizes $\Delta$ over all possible splits and over all features. Once the optimal split is selected, the tree is grown by recursively applying this splitting process to the resulting child nodes.
-
-## Other features
-
-*   Supports multiclass classification
-*   Supports standard decision tree parameters (max_depth, min_samples_split, max_features, n_estimators, etc.)
-*   Ability to control the number of variable splitting options when optimizing a split (i.e `nb_max_cut_options_per_var` parameter).
-*   Ability to control the maximum number of splits to be tested per node to avoid overly long calculations in multi-condition mode (i.e `nb_max_split_options_per_node` parameters)
-*   Possibility of parallelizing calculations (i.e `n_jobs` parameters)
 
 ## Usage
 
