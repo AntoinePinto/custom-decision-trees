@@ -79,10 +79,6 @@ import numpy as np
 
 from custom_decision_trees.metrics import MetricBase
 
-import numpy as np
-
-from custom_decision_trees.metrics import MetricBase
-
 
 class Gini(MetricBase):
 
