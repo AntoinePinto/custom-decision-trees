@@ -13,7 +13,7 @@
 
 </div>
 
-**Custom Decision Trees** is a Python package that lets you build machine learning models with advanced configuration :
+**Custom Decision Trees** is a Python package that lets you build Decision Trees / Random Forests models with advanced configuration :
 
 ## Main Features
 
@@ -38,6 +38,7 @@ Example of multi-condition splitting on the Titanic dataset:
 
 ### Other features
 
+*   Supports classification and regression
 *   Supports multiclass classification
 *   Supports standard decision tree parameters (max_depth, min_samples_split, max_features, n_estimators, etc.)
 *   Supports STRING type explanatory variables
@@ -46,6 +47,7 @@ Example of multi-condition splitting on the Titanic dataset:
 *   Possibility of parallelizing calculations (i.e `n_jobs` parameters)
 
 ## Reminder on splitting criteria
+
 Splitting in a decision tree is achieved by **optimizing a metric**. For example, Gini optimization consists in **maximizing** the $\Delta_{Gini}$ :
 
 *   **The Gini Index** represents the impurity of a group of observations based on the observations of each class (0 and 1):
@@ -60,7 +62,7 @@ At each node, the tree algorithm finds the split that minimizes $\Delta$ over al
 
 ## Usage
 
-> See `./notebooks/` folder for a complete examples.
+> See `./notebooks/` folder for complete examples.
 
 ### Installation
 
@@ -134,11 +136,11 @@ class Gini(MetricBase):
 Once you have instantiated the model with your custom metric, all you have to do is use the `.fit` and `.predict_proba` methods:
 
 ```python
-from custom_decision_trees import DecisionTree
+from custom_decision_trees import DecisionTreeClassifier
 
 gini = Gini()
 
-decision_tree = DecisionTree(
+decision_tree = DecisionTreeClassifier(
     metric=gini,
     max_depth=2,
     nb_max_conditions_per_node=2 # Set to 1 for a traditional decision tree
@@ -202,7 +204,7 @@ decision_tree.plot_tree(
 Same with Random Forest Classifier :
 
 ```python
-from custom_decision_trees import RandomForest
+from custom_decision_trees import RandomForestClassifier
 
 random_forest = RandomForest(
     metric=gini,
@@ -221,3 +223,30 @@ probas = random_forest.predict_probas(
     X=X_test
 )
 ```
+
+### Regression
+
+The "regression" mode is used in exactly the same way as "classification", i.e., by specifying the metric from a Python class.
+
+```python
+your_metric = YourMetric()
+
+decision_tree_regressor = DecisionTreeRegressor(
+    metric=your_metric,
+    max_depth=2,
+    min_samples_split=2,
+    min_samples_leaf=1,
+    max_features=None,
+    nb_max_conditions_per_node=2,
+    nb_max_cut_options_per_var=10,
+    n_jobs=1
+)
+
+decision_tree_regressor.fit(
+    X=X,
+    y=y,
+    metric_data=metric_data,
+)
+```
+
+**See `/notebooks` folder for complete examples.**

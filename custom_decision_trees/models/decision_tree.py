@@ -1,5 +1,6 @@
 import math
 import random
+from abc import ABC, abstractmethod
 from itertools import combinations
 from typing import Callable, Dict, List, Literal, Tuple
 
@@ -7,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from joblib import Parallel, delayed
 
-from custom_decision_trees.metrics import Gini, MetricBase
+from custom_decision_trees.metrics import MetricBase
 from custom_decision_trees.utils import (
     bold,
     get_node_coordinates,
@@ -17,7 +18,7 @@ from custom_decision_trees.utils import (
 from .schemas import Cut, DecisionTreePrediction, Partition, Split, SplitEvaluation
 
 
-class DecisionTree:
+class DecisionTree(ABC):
     """
     A custom implementation of a decision tree classifier with support for different
     splitting metrics.
@@ -62,14 +63,15 @@ class DecisionTree:
             The maximum number of conditions per node.
         nb_max_cut_options_per_var : int, default=2
             The maximum number of cut options to evaluate per variable.
+        nb_max_split_options_per_node
+            Maximum number of splits to be tested per node to avoid overly
+            long calculations in multi-condition mode
         random_state : int or None, default=None
             Seed for reproducibility.
         n_jobs : int, default=1
             Number of parallel jobs to run.
         """
 
-        if metric is None:
-            metric = Gini()
         self.metric = metric
 
         self.max_depth = max_depth
@@ -240,6 +242,21 @@ class DecisionTree:
             self,
             nb_available_cuts: int,
         ):
+        """
+        Compute the maximum number of possible split combinations given
+        the available cut options and the maximum number of conditions
+        allowed per node.
+
+        Parameters
+        ----------
+        nb_available_cuts : int
+            The number of available cut options for splitting.
+
+        Returns
+        -------
+        int
+            The total number of possible split combinations.
+        """
 
         nb_split_options = 0
         for k in range(1, self.nb_max_conditions_per_node + 1):
@@ -422,10 +439,11 @@ class DecisionTree:
 
         return split_evaluations
 
-    def get_repartition(
+    @abstractmethod
+    def get_partition_value(
             self,
             y: np.ndarray,
-        ) -> List[int]:
+        ) -> List[int] | float:
         """
         Compute the class distribution of the target variable.
 
@@ -440,9 +458,7 @@ class DecisionTree:
             A list containing the count of each class.
         """
 
-        repartition = [int(np.sum(y == i)) for i in self.classes]
-
-        return repartition
+        pass  # This method should be defined in child class
 
     def get_min_samples(
             self,
@@ -537,7 +553,7 @@ class DecisionTree:
             id=0,
             depth=0,
             mask=mask,
-            repartition=self.get_repartition(y),
+            value=self.get_partition_value(y),
             metric=metric,
             metadata=metadata,
             historic_splits=[],
@@ -550,7 +566,6 @@ class DecisionTree:
             X: np.ndarray,
             y: np.ndarray,
             metric_data: np.ndarray,
-            classes: np.ndarray | None = None,
             batch_size: int = 1000,
             tqdm_func: Callable | None = None,
         ) -> None:
@@ -572,8 +587,6 @@ class DecisionTree:
         tqdm_func : callable or None, default=None
             Optional progress bar function.
         """
-
-        self.classes = np.unique(y) if classes is None else classes
 
         min_samples_split = self.get_min_samples(param=self.min_samples_split, X=X)
         min_samples_leaf = self.get_min_samples(param=self.min_samples_leaf, X=X)
@@ -648,7 +661,7 @@ class DecisionTree:
                         id=partition_id * 2 + 1,
                         depth=partition.depth + 1,
                         mask=mask_side1,
-                        repartition=self.get_repartition(y[mask_side1]),
+                        value=self.get_partition_value(y[mask_side1]),
                         metric=metric,
                         metadata=metadata,
                         historic_splits=partition.historic_splits + [split_side1],
@@ -667,7 +680,7 @@ class DecisionTree:
                         id=partition_id * 2 + 2,
                         depth=partition.depth + 1,
                         mask=mask_side2,
-                        repartition=self.get_repartition(y[mask_side2]),
+                        value=self.get_partition_value(y[mask_side2]),
                         metric=metric,
                         metadata=metadata,
                         historic_splits=partition.historic_splits + [split_side2],
@@ -678,7 +691,7 @@ class DecisionTree:
             x: np.ndarray,
         ) -> DecisionTreePrediction:
         """
-        Predict the class probabilities for a single sample.
+        Predict for a single sample.
 
         Parameters
         ----------
@@ -688,7 +701,7 @@ class DecisionTree:
         Returns
         -------
         list
-            The predicted probabilities for each class.
+            The prediction.
         """
 
         partition_id = 0
@@ -705,12 +718,12 @@ class DecisionTree:
             else:
                 return partition.prediction
 
-    def predict(
+    def predict_all(
             self,
             X: np.ndarray,
         ) -> List[DecisionTreePrediction]:
         """
-        Predict class probabilities for a set of samples.
+        Predict for a set of samples.
 
         Parameters
         ----------
@@ -720,7 +733,7 @@ class DecisionTree:
         Returns
         -------
         list of DecisionTreePrediction
-            List of prediction objects containing probabilities and metrics.
+            List of predictions.
         """
 
         if np.any(np.isnan(X)):
@@ -733,12 +746,12 @@ class DecisionTree:
 
         return predictions
 
-    def predict_probas(
+    def predict(
             self,
             X: np.ndarray,
         ) -> np.ndarray:
         """
-        Predict class probabilities as an array.
+        Predict the values as an array.
 
         Parameters
         ----------
@@ -748,36 +761,13 @@ class DecisionTree:
         Returns
         -------
         np.ndarray
-            Predicted probabilities.
+            Predicted values.
         """
 
-        predictions = self.predict(X=X)
-        probas = np.array([p.probas for p in predictions])
+        tree_predictions = self.predict_all(X=X)
+        predictions = np.array([p.value for p in tree_predictions])
 
-        return probas
-
-    def predict_metrics(
-            self,
-            X: np.ndarray,
-        ) -> np.ndarray:
-        """
-        Predict the splitting metric values for the provided samples.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Feature matrix.
-
-        Returns
-        -------
-        np.ndarray
-            Array of metric values corresponding to the predictions.
-        """
-
-        predictions = self.predict(X=X)
-        metrics = np.array([p.metric for p in predictions])
-
-        return metrics
+        return predictions
 
     def next_uncle(
             self,
@@ -885,8 +875,6 @@ class DecisionTree:
         if x_to_predict is not None:
             x_prediction = self.predict_x(x=x_to_predict)
 
-        print(f"classes: {self.classes}")
-
         partition_id = 0
         while True:
 
@@ -913,7 +901,10 @@ class DecisionTree:
                 )
 
                 if show_repartition is True:
-                    label += f" | repartition = {partition.repartition}"
+                    if isinstance(partition.value, List):
+                        label += f" | repartition = {partition.value}"
+                    else:
+                        label += f" | mean y = {partition.value:.{digits}f}"
 
                 if show_metadata is True:
                     label += f" | {partition.metadata}"
@@ -993,17 +984,22 @@ class DecisionTree:
 
         for partition_id, partition in self.partitions.items():
 
-            label = f"{metric_name} = {partition.metric:.{digits_metric}g}"
+            label = f"{metric_name} = {partition.metric:.{digits_metric}f}"
 
             if show_repartition:
-                label += f"\n{partition.nb_obs} obs {partition.repartition}"
+
+                label += f"\n{partition.nb_obs} obs"
+                if isinstance(partition.value, List):
+                    label += f" {partition.value}"
+                else:
+                    label += f" | mean y = {partition.value:.{digits}f}"
 
             if show_metadata:
                 label += "\n\nMETADATA:\n"
 
                 parts = []
                 for k, v in partition.metadata.items():
-                    parts.append(f"{k}: {v:.{digits}g}")
+                    parts.append(f"{k}: {v:.{digits}f}")
 
                 label += "\n ".join(parts)
 
@@ -1068,6 +1064,6 @@ class DecisionTree:
         ax.set_ylim(0, 1)
         ax.set_xlim(0, 1)
 
-        plt.title(f"{title} (classes: {self.classes})", fontsize=14, loc="left")
+        plt.title(title, fontsize=14, loc="left")
         plt.tight_layout()
         plt.show()

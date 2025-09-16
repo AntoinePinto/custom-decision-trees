@@ -15,7 +15,7 @@ class Gini(MetricBase):
             self,
             n_classes: int = 2,
         ) -> None:
-        
+
         self.n_classes = n_classes
         self.max_impurity = 1 - 1 / n_classes
 
@@ -29,16 +29,18 @@ class Gini(MetricBase):
         Parameters
         ----------
         metric_data : np.ndarray
-            A 2D NumPy array where the first column represents binary class labels (0 or 1).
+            A 2D NumPy array where the first column represents binary class labels
+            (0 or 1).
 
         Returns
         -------
         float
-            The Gini impurity score. Returns the max impurity if the input array is empty.
+            The Gini impurity score. Returns the max impurity if the input array is
+            empty.
         """
 
         y = metric_data[:, 0]
-        
+
         nb_obs = len(y)
 
         if nb_obs == 0:

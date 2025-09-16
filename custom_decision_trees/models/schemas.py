@@ -183,8 +183,8 @@ class DecisionTreePrediction:
 
     Attributes
     ----------
-    probas : list[float]
-        Predicted class probabilities.
+    value : list[float] | float
+        Class proportion (classification) or mean (regression) in the partition.
     metric : float
         Evaluation metric for the prediction.
     metadata : dict
@@ -193,7 +193,7 @@ class DecisionTreePrediction:
         IDs of tree nodes traversed to reach the prediction.
     """
 
-    probas: List[float]
+    value: List[float] | float
     metric: float
     metadata: Dict
     path: List[int]
@@ -216,8 +216,13 @@ class DecisionTreePrediction:
             Formatted prediction string.
         """
 
-        prediction_str = "Prediction : probas={probas} ; metric={metric}".format(
-            probas=[round(p, digits) for p in self.probas],
+        if isinstance(self.value, List):
+            pred_str = f"probas={[round(p, digits) for p in self.value]}"
+        else:
+            pred_str = round(self.value, digits)
+
+        prediction_str = "Prediction : {prediction} ; metric={metric}".format(
+            prediction=pred_str,
             metric=round(self.metric, digits),
         )
 
@@ -230,16 +235,10 @@ class RandomForestPrediction:
 
     Attributes
     ----------
-    probas : list[float]
-        Averaged class probabilities from all trees.
-    metric : float
-        Averaged evaluation metric from all trees.
     trees_predictions : list[DecisionTreePrediction]
         Individual predictions from each tree.
     """
 
-    probas: List[float]
-    metric: float
     trees_predictions: List[DecisionTreePrediction]
 
 @dataclass
@@ -259,8 +258,8 @@ class Partition:
         Evaluation metric for this node.
     metadata : dict
         Additional data related to the node.
-    repartition : list[int]
-        Class distribution in the partition.
+    value : list[int] | float
+        Class distribution (classification) or mean (regression) in the partition.
     historic_splits : list[Split]
         Sequence of splits that led to this partition.
     type : str, optional
@@ -287,7 +286,7 @@ class Partition:
     mask: np.ndarray
     metric: float
     metadata: Dict
-    repartition: List[int]
+    value: List[int] | float
     historic_splits: List[Split]
     type: Optional[str] = "leaf"
     split_evaluations: Optional[List[SplitEvaluation]] = None
@@ -360,11 +359,16 @@ class Partition:
         Returns
         -------
         DecisionTreePrediction
-            The prediction containing class probabilities and metadata.
+            The prediction containing class predictions and metadata.
         """
 
+        if isinstance(self.value, List):
+            prediction_value = [p / self.nb_obs for p in self.value]
+        else:
+            prediction_value = self.value
+
         prediction = DecisionTreePrediction(
-            probas=[p / self.nb_obs for p in self.repartition],
+            value=prediction_value,
             metric=self.metric,
             metadata=self.metadata,
             path=[self.id] + self.parents,
