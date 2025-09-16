@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="custom-decision-trees",
-    version="2.0.2",
+    version="3.0.0",
     description=(
         "A package for building customizable decision trees and random forests."
     ),

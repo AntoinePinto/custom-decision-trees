@@ -1,6 +1,9 @@
 from typing import Dict, Tuple
+
 import numpy as np
+
 from .metric_base import MetricBase
+
 
 class Entropy(MetricBase):
     """
@@ -9,7 +12,10 @@ class Entropy(MetricBase):
     Inherits from MetricBase.
     """
 
-    def __init__(self, n_classes: int = 2) -> None:
+    def __init__(
+            self,
+            n_classes: int = 2
+        ) -> None:
         """
         Initialize the Entropy metric.
 
@@ -21,7 +27,10 @@ class Entropy(MetricBase):
         self.n_classes = n_classes
         self.max_entropy = np.log2(n_classes)
 
-    def compute_entropy(self, metric_data: np.ndarray) -> float:
+    def compute_entropy(
+            self,
+            metric_data: np.ndarray
+        ) -> float:
         """
         Compute the entropy for a classification dataset.
 
@@ -49,14 +58,19 @@ class Entropy(MetricBase):
 
         return float(entropy)
 
-    def compute_metric(self, metric_data: np.ndarray, mask: np.ndarray) -> Tuple[float, Dict]:
+    def compute_metric(
+            self,
+            metric_data: np.ndarray,
+            mask: np.ndarray
+        ) -> Tuple[float, Dict]:
         """
         Compute the entropy gain (information gain) from a potential split.
 
         Parameters
         ----------
         metric_data : np.ndarray
-            A 2D NumPy array of metric-related data. The first column should contain labels.
+            A 2D NumPy array of metric-related data. The first column should contain
+            labels.
         mask : np.ndarray
             A boolean mask indicating which rows belong to the first side of the split.
 

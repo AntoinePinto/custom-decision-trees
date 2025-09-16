@@ -1,4 +1,5 @@
 import math
+from abc import ABC, abstractmethod
 from typing import Callable, Dict, List
 
 import numpy as np
@@ -9,7 +10,7 @@ from custom_decision_trees.models.decision_tree import DecisionTree
 from custom_decision_trees.models.schemas import RandomForestPrediction
 
 
-class RandomForest:
+class RandomForest(ABC):
     """
     A implementation of a random forest with configurable estimators and splitting
     metrics.
@@ -19,7 +20,7 @@ class RandomForest:
 
     def __init__(
             self,
-            metric: MetricBase,
+            metric: MetricBase | None = None,
             n_estimators: int = 100,
             max_depth: int = 5,
             min_samples_split: int | float = 2,
@@ -27,6 +28,7 @@ class RandomForest:
             max_features: str | int | None = "sqrt",
             nb_max_conditions_per_node = 2,
             nb_max_cut_options_per_var = 2,
+            nb_max_split_options_per_node: int | None = None,
             bootstrap: bool = True,
             max_samples: int | float | None = None,
             random_state: int | None = None,
@@ -57,6 +59,9 @@ class RandomForest:
             The maximum number of conditions combined per decision node (via AND).
         nb_max_cut_options_per_var : int, default=2
             The maximum number of cut options to evaluate per variable.
+        nb_max_split_options_per_node
+            Maximum number of splits to be tested per node to avoid overly long
+            calculations in multi-condition mode
         bootstrap : bool, default=True
             Whether to bootstrap samples when building trees.
         max_samples : int, float or None, default=None
@@ -118,6 +123,7 @@ class RandomForest:
 
         return max_samples
 
+    @abstractmethod
     def train_decision_tree(
             self,
             X: np.ndarray,
@@ -151,36 +157,7 @@ class RandomForest:
             The trained decision tree.
         """
 
-        observations_sample = np.array(range(X.shape[0]))
-        if self.bootstrap is True:
-            observations_sample = np.random.choice(
-                observations_sample,
-                size=max_samples,
-                replace=True,
-            )
-
-        decision_tree = DecisionTree(
-            metric=self.metric,
-            max_depth=self.max_depth,
-            min_samples_split=self.min_samples_split,
-            min_samples_leaf=self.min_samples_leaf,
-            max_features=self.max_features,
-            nb_max_conditions_per_node=self.nb_max_conditions_per_node,
-            nb_max_cut_options_per_var=self.nb_max_cut_options_per_var,
-            random_state=self.random_state,
-            n_jobs=self.n_jobs,
-        )
-
-        decision_tree.fit(
-            X=X[observations_sample,:],
-            y=y[observations_sample],
-            metric_data=metric_data[observations_sample],
-            classes=self.classes,
-            batch_size=batch_size,
-            tqdm_func=tqdm_func,
-        )
-
-        return decision_tree
+        pass
 
     def fit(
             self,
@@ -221,8 +198,6 @@ class RandomForest:
         if np.any(np.isnan(metric_data)):
             raise ValueError("Input metric_data contains NaN values.")
 
-        self.classes = np.unique(y)
-
         max_samples = self.get_max_samples(X)
 
         tasks = []
@@ -260,7 +235,7 @@ class RandomForest:
             x: Dict,
         ) -> RandomForestPrediction:
         """
-        Predict the class probabilities and metric for a single sample.
+        Predict for a single sample.
 
         Parameters
         ----------
@@ -270,7 +245,7 @@ class RandomForest:
         Returns
         -------
         prediction : RandomForestPrediction
-            The prediction result including class probabilities and metric.
+            The prediction.
         """
 
         predictions = []
@@ -278,23 +253,18 @@ class RandomForest:
             prediction = decision_tree.predict_x(x)
             predictions.append(prediction)
 
-        probas = np.array([p.probas for p in predictions])
-        metrics = np.array([p.metric for p in predictions])
-
         prediction = RandomForestPrediction(
-            probas=list(map(float, np.mean(probas, axis=0))),
-            metric=float(np.mean(metrics)),
             trees_predictions=predictions,
         )
 
         return prediction
 
-    def predict(
+    def predict_all(
             self,
             X: np.ndarray,
         ) -> List[RandomForestPrediction]:
         """
-        Predict class probabilities and metrics for multiple samples.
+        Predict for multiple samples.
 
         Parameters
         ----------
@@ -322,12 +292,12 @@ class RandomForest:
 
         return predictions
 
-    def predict_probas(
+    def predict(
             self,
             X: np.ndarray,
         ) -> np.ndarray:
         """
-        Predict class probabilities for all samples.
+        Return predited values for all samples.
 
         Parameters
         ----------
@@ -336,37 +306,21 @@ class RandomForest:
 
         Returns
         -------
-        probas : np.ndarray
-            Array of shape (n_samples, n_classes) with predicted probabilities.
+        predictions : np.ndarray
+            Array of shape (n_samples, n_classes) with predicted values.
         """
 
-        predictions = self.predict(X=X)
-        probas = np.array([p.probas for p in predictions])
+        rf_predictions = self.predict_all(X=X)
 
-        return probas
+        predictions = []
+        for rf_prediction in rf_predictions:
+            x_predictions = np.mean(
+                [p.value for p in rf_prediction.trees_predictions],
+                axis=0
+            )
+            predictions.append(x_predictions)
 
-    def predict_metrics(
-            self,
-            X: np.ndarray,
-        ) -> np.ndarray:
-        """
-        Predict the associated metric for all samples.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Input features.
-
-        Returns
-        -------
-        metrics : np.ndarray
-            Array of shape (n_samples,) containing the predicted metrics.
-        """
-
-        predictions = self.predict(X=X)
-        metrics = np.array([p.metric for p in predictions])
-
-        return metrics
+        return np.array(predictions)
 
     def print_forest(
             self,
