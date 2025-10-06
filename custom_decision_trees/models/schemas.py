@@ -52,6 +52,13 @@ class Split:
     cuts: List[Cut]
     operator: Literal["&", "|"] = "&"
 
+    inverse_signs = {
+        "<=": ">",
+        ">": "<=",
+        "==": "!=",
+        "!=": "==",
+    }
+
     def __post_init__(self) -> None:
 
         self.filter = self.get_filter()
@@ -146,7 +153,7 @@ class Split:
 
         cuts = []
         for cut_side1 in self.cuts:
-            cut = replace(cut_side1, sign="<=" if cut_side1.sign == ">" else ">")
+            cut = replace(cut_side1, sign=self.inverse_signs[cut_side1.sign])
             cuts.append(cut)
 
         inverse_split = Split(

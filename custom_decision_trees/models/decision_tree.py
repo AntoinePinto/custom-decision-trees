@@ -736,9 +736,6 @@ class DecisionTree(ABC):
             List of predictions.
         """
 
-        if np.any(np.isnan(X)):
-            raise ValueError("Input X contains NaN values.")
-
         predictions = []
         for i in range(len(X)):
             prediction = self.predict_x(x=X[i,:])

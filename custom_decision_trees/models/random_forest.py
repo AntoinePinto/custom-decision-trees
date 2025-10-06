@@ -189,9 +189,6 @@ class RandomForest(ABC):
             If X, y, or metric_data contain NaN values.
         """
 
-        if np.any(np.isnan(X)):
-            raise ValueError("Input X contains NaN values.")
-
         if np.any(np.isnan(y)):
             raise ValueError("Input y contains NaN values.")
 
@@ -281,9 +278,6 @@ class RandomForest(ABC):
         ValueError
             If input X contains NaN values.
         """
-
-        if np.any(np.isnan(X)):
-            raise ValueError("Input X contains NaN values.")
 
         predictions = []
         for i in range(X.shape[0]):
