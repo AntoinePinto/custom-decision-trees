@@ -359,7 +359,7 @@ class DecisionTree(ABC):
             self,
             metric_data: np.ndarray,
             split: Split,
-            mask_matrix: Dict[int, np.ndarray],
+            mask: np.ndarray,
         ) -> SplitEvaluation | None:
         """
         Evaluate a split option using the provided metric.
@@ -370,8 +370,8 @@ class DecisionTree(ABC):
             Data used for metric computation.
         split : Split
             The split to evaluate.
-        mask_matrix : dict
-            A dictionary of masks for each cut.
+        mask : np.ndarray
+            The mask for the split.
 
         Returns
         -------
@@ -379,7 +379,6 @@ class DecisionTree(ABC):
             The split evaluation or None if invalid.
         """
 
-        mask = split.get_mask(mask_matrix=mask_matrix)
 
         metric, metadata = self.metric.compute_metric(
             metric_data=metric_data,
@@ -430,10 +429,12 @@ class DecisionTree(ABC):
         tasks = []
         for split in split_options:
 
+            mask = split.get_mask(mask_matrix=mask_matrix)
+
             task = delayed(self.get_split_evaluation)(
                 metric_data=metric_data,
                 split=split,
-                mask_matrix=mask_matrix,
+                mask=mask,
             )
 
             tasks.append(task)
