@@ -443,7 +443,7 @@ class DecisionTree(ABC):
             n_jobs=self.n_jobs,
             return_as="generator_unordered",
             batch_size=batch_size,
-            backend="threading",
+            backend="loky",
         )
 
         if tqdm_func is None:
