@@ -266,23 +266,37 @@ class DecisionTree(ABC):
 
     def get_split_options(
             self,
-            available_cuts: List[Cut],
-        ) -> List[Split]:
+            X: np.ndarray,
+            min_samples_leaf: int,
+            max_features: int,
+        ) -> Tuple[List[Split], np.ndarray]:
         """
         Generate split combinations from available cuts.
 
         Parameters
         ----------
-        available_cuts : list of Cut
-            The available cut conditions.
+        X : np.ndarray
+            The input data.
+        min_samples_leaf : int
+            Minimum required samples in a leaf.
+        max_features : int
+            Number of features to consider for splitting.
 
         Returns
         -------
         split_options : list of Split
             The list of candidate split combinations.
+        mask_matrix : dict
+            A dictionary mapping cut IDs to boolean masks.
         """
 
         max_size = self.nb_max_split_options_per_node
+
+        available_cuts, mask_matrix = self.get_available_cuts(
+            X=X,
+            min_samples_leaf=min_samples_leaf,
+            max_features=max_features,
+        )
 
         if max_size is not None:
             if max_size > self.get_nb_max_combis(len(available_cuts)):
@@ -317,7 +331,7 @@ class DecisionTree(ABC):
 
             split_options.append(split)
 
-        return split_options
+        return split_options, mask_matrix
 
     def get_split_evaluation(
             self,
@@ -617,13 +631,16 @@ class DecisionTree(ABC):
                 if np.sum(partition.mask) < min_samples_split:
                     continue
 
-                available_cuts, mask_matrix = self.get_available_cuts(
+                split_options, mask_matrix = self.get_split_options(
                     X=X[partition.mask, :],
                     min_samples_leaf=min_samples_leaf,
                     max_features=max_features,
                 )
+                
+                # Skip iteration if no valid split options has been found
+                if len(split_options) == 0:
+                    continue
 
-                split_options = self.get_split_options(available_cuts)
                 partition_metric_data = metric_data[partition.mask]
 
                 split_evaluations = self.get_split_evaluations(
@@ -634,10 +651,6 @@ class DecisionTree(ABC):
                     batch_size=batch_size,
                     tqdm_func=tqdm_func,
                 )
-
-                # Skip iteration if no valid cuts has been found
-                if len(split_evaluations) == 0:
-                    continue
 
                 partition.split_evaluations = sorted(
                     split_evaluations,
