@@ -33,6 +33,7 @@ class DecisionTree(ABC):
             min_samples_leaf: int | float = 2,
             max_features: Literal["sqrt", "log2"] | int | float | None = "sqrt",
             nb_max_conditions_per_node: int = 1,
+            max_split_options_search_factor: int = 10,
             nb_max_cut_options_per_var: int = 10,
             nb_max_split_options_per_node: int | None = None,
             random_state: int | None = None,
@@ -62,6 +63,9 @@ class DecisionTree(ABC):
             'sqrt', 'log2', None, int or float.
         nb_max_conditions_per_node : int, default=2
             The maximum number of conditions per node.
+        max_split_options_search_factor : int, default=10
+            The factor to multiply the maximum number of split options by when searching
+            for valid splits in random sampling mode.
         nb_max_cut_options_per_var : int, default=2
             The maximum number of cut options to evaluate per variable.
         nb_max_split_options_per_node
@@ -106,6 +110,7 @@ class DecisionTree(ABC):
         self.nb_max_conditions_per_node = nb_max_conditions_per_node
         self.nb_max_cut_options_per_var = nb_max_cut_options_per_var
         self.nb_max_split_options_per_node = nb_max_split_options_per_node
+        self.max_split_options_search = nb_max_split_options_per_node * max_split_options_search_factor
         self.random_state = random_state
         np.random.seed(random_state)
         self.n_jobs = n_jobs
@@ -387,6 +392,9 @@ class DecisionTree(ABC):
                 total=max_size,
                 disable=not self.verbose,
             )
+            
+            nb_searchs = 0
+
             while len(split_options) < max_size:
 
                 k = random.choices(k_options, weights=weights, k=1)[0] # noqa: S311
@@ -400,6 +408,16 @@ class DecisionTree(ABC):
                 if self.is_valid_split(split, mask_matrix, min_samples_leaf):
                     split_options.append(split)
                     pbar.update(1)
+
+                nb_searchs += 1
+                if nb_searchs >= self.max_split_options_search:
+                    self.logger.info(
+                        f"Maximum number of {nb_searchs} searchs reached while"
+                        f" looking for valid splits. Found {len(split_options)}"
+                        f" valid splits out of {max_size}(`nb_max_split_options_per_node`) required."
+                        f" Consider increasing `max_split_options_search_factor`"
+                    )
+                    break
 
             pbar.close()
 
