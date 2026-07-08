@@ -489,6 +489,7 @@ class DecisionTree(ABC):
 
     def get_max_features(
             self,
+            param: int | float | str | None,
             X: np.ndarray,
         ) -> int:
         """
@@ -496,26 +497,28 @@ class DecisionTree(ABC):
 
         Parameters
         ----------
+        param : int, float, str, or None
+            The max_features parameter.
         X : np.ndarray
             The input features.
 
         Returns
         -------
-        max_features : int
+        param : int
             Number of features to consider.
         """
 
-        if isinstance(self.max_features, str):
-            if self.max_features == "sqrt":
+        if isinstance(param, str):
+            if param == "sqrt":
                 return int(np.sqrt(X.shape[1]))
             else:
                 return int(np.log2(X.shape[1]))
-        elif self.max_features is None:
+        elif param is None:
             return X.shape[1]
-        elif isinstance(self.max_features, float):
-            return max([1, math.ceil(self.max_features * len(X.shape[1]))])
+        elif isinstance(param, float):
+            return max([1, math.ceil(param * X.shape[1])])
         else:
-            return self.max_features
+            return param
 
     def init_partitions(
             self,
@@ -590,7 +593,7 @@ class DecisionTree(ABC):
 
         min_samples_split = self.get_min_samples(param=self.min_samples_split, X=X)
         min_samples_leaf = self.get_min_samples(param=self.min_samples_leaf, X=X)
-        max_features = self.get_max_features(X=X)
+        max_features = self.get_max_features(param=self.max_features, X=X)
 
         self.partitions = self.init_partitions(
             X=X,
