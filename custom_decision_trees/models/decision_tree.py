@@ -12,7 +12,6 @@ from custom_decision_trees.metrics import MetricBase
 from custom_decision_trees.utils import (
     bold,
     get_node_coordinates,
-    get_random_cardinalities,
 )
 
 from .schemas import Cut, DecisionTreePrediction, Partition, Split, SplitEvaluation
@@ -264,6 +263,26 @@ class DecisionTree(ABC):
 
         return nb_split_options
 
+    def is_valid_split(
+        self,
+        split,
+        mask_matrix,
+        min_samples_leaf: int,
+    ) -> bool:
+
+        mask = split.get_mask(mask_matrix=mask_matrix)
+
+        nb_obs = int(np.sum(mask))
+
+        if nb_obs < min_samples_leaf:
+            return False
+
+        if len(split.cuts) > 1:
+            if nb_obs in [cut.nb_obs for cut in split.cuts]:
+                return False
+            
+        return True
+
     def get_split_options(
             self,
             X: np.ndarray,
@@ -303,33 +322,36 @@ class DecisionTree(ABC):
                 max_size = None
 
         available_cuts_indices = list(range(len(available_cuts)))
-
-        cut_combis = []
+        split_options: List[Split] = []
         if max_size is None:
             for k in range(1, self.nb_max_conditions_per_node + 1):
-                cut_combis.extend(list(combinations(available_cuts_indices, k)))
+                cut_combis = list(combinations(available_cuts_indices, k))
+                for cuts_indices in cut_combis:
+
+                    split = Split(
+                        cuts=[available_cuts[i] for i in cuts_indices],
+                        operator="&",
+                    )
+
+                    if self.is_valid_split(split, mask_matrix, min_samples_leaf):
+                        split_options.append(split)
         else:
+            
+            k_options = list(range(1, self.nb_max_conditions_per_node + 1))
+            weights = [math.comb(len(available_cuts), k) for k in k_options]
 
-            cardinalities = get_random_cardinalities(
-                nb_options=len(available_cuts),
-                max_cardinality=self.nb_max_conditions_per_node,
-                size=max_size
-            )
+            while len(split_options) < max_size:
+                
+                k = random.choices(k_options, weights=weights, k=1)[0]
+                cuts_indices = random.sample(available_cuts_indices, k=k)
 
-            for k in cardinalities:
-                cut_combis.append(random.sample(available_cuts_indices, k=k))
+                split = Split(
+                    cuts=[available_cuts[i] for i in cuts_indices],
+                    operator="&",
+                )
 
-            cut_combis = list(map(list, dict.fromkeys(tuple(i) for i in cut_combis)))
-
-        split_options: List[Split] = []
-        for cuts_indices in cut_combis:
-
-            split = Split(
-                cuts=[available_cuts[i] for i in cuts_indices],
-                operator="&",
-            )
-
-            split_options.append(split)
+                if self.is_valid_split(split, mask_matrix, min_samples_leaf):
+                    split_options.append(split)
 
         return split_options, mask_matrix
 
@@ -338,7 +360,6 @@ class DecisionTree(ABC):
             metric_data: np.ndarray,
             split: Split,
             mask_matrix: Dict[int, np.ndarray],
-            min_samples_leaf: int,
         ) -> SplitEvaluation | None:
         """
         Evaluate a split option using the provided metric.
@@ -351,8 +372,6 @@ class DecisionTree(ABC):
             The split to evaluate.
         mask_matrix : dict
             A dictionary of masks for each cut.
-        min_samples_leaf : int
-            Minimum required samples in a leaf.
 
         Returns
         -------
@@ -362,15 +381,6 @@ class DecisionTree(ABC):
 
         mask = split.get_mask(mask_matrix=mask_matrix)
 
-        nb_obs = int(np.sum(mask))
-
-        if nb_obs < min_samples_leaf:
-            return None
-
-        if len(split.cuts) > 1:
-            if any([nb_obs == cut.nb_obs for cut in split.cuts]):
-                return None
-
         metric, metadata = self.metric.compute_metric(
             metric_data=metric_data,
             mask=mask,
@@ -378,7 +388,7 @@ class DecisionTree(ABC):
 
         split_evaluation = SplitEvaluation(
             split=split,
-            nb_obs=nb_obs,
+            nb_obs=int(np.sum(mask)),
             metric=metric,
             metadata=metadata,
         )
@@ -390,7 +400,6 @@ class DecisionTree(ABC):
             split_options: List[Split],
             mask_matrix: np.ndarray,
             metric_data: np.ndarray,
-            min_samples_leaf: int,
             batch_size: int = 1000,
             tqdm_func: Callable | None = None,
         ) -> List[SplitEvaluation]:
@@ -425,7 +434,6 @@ class DecisionTree(ABC):
                 metric_data=metric_data,
                 split=split,
                 mask_matrix=mask_matrix,
-                min_samples_leaf=min_samples_leaf,
             )
 
             tasks.append(task)
@@ -448,8 +456,7 @@ class DecisionTree(ABC):
 
         split_evaluations = []
         for future in items:
-            if future is not None:
-                split_evaluations.append(future)
+            split_evaluations.append(future)
 
         return split_evaluations
 
@@ -647,7 +654,6 @@ class DecisionTree(ABC):
                     split_options=split_options,
                     mask_matrix=mask_matrix,
                     metric_data=partition_metric_data,
-                    min_samples_leaf=min_samples_leaf,
                     batch_size=batch_size,
                     tqdm_func=tqdm_func,
                 )
