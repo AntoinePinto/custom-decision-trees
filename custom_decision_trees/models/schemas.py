@@ -5,16 +5,16 @@ import numpy as np
 
 
 @dataclass
-class Cut:
+class Condition:
     """
-    Represents a single binary condition (cut) on a feature for a decision node.
+    Represents a single binary condition (condition) on a feature for a decision node.
 
     Attributes
     ----------
     id : int
-        Unique identifier for the cut.
+        Unique identifier for the condition.
     var_id : str
-        Identifier of the feature on which the cut is applied.
+        Identifier of the feature on which the condition is applied.
     sign : str
         Comparison operator (e.g., '>', '<=', etc.).
     value : float
@@ -32,11 +32,11 @@ class Cut:
 @dataclass
 class Split:
     """
-    Represents a composite split made of multiple `Cut` objects.
+    Represents a composite split made of multiple `Condition` objects.
 
     Attributes
     ----------
-    cuts : list[Cut]
+    conditions : list[Condition]
         List of binary conditions.
     operator : Literal["&", "|"], optional
         Logical operator for combining conditions, default is '&'.
@@ -49,7 +49,7 @@ class Split:
         A lambda function to evaluate the condition for a single sample.
     """
 
-    cuts: List[Cut]
+    conditions: List[Condition]
     operator: Literal["&", "|"] = "&"
 
     inverse_signs = {
@@ -96,14 +96,14 @@ class Split:
         condition_template = "(x[{var}] {sign} {value})"
 
         conditions = []
-        for cut in self.cuts:
+        for condition in self.conditions:
 
             if feature_names is not None:
-                var = '"' + feature_names[int(cut.var_id)] + '"'
+                var = '"' + feature_names[int(condition.var_id)] + '"'
             else:
-                var = cut.var_id
+                var = condition.var_id
 
-            value = cut.value
+            value = condition.value
             if isinstance(value, float):
                 value = round(value, digits)
             elif isinstance(value, str):
@@ -111,7 +111,7 @@ class Split:
 
             condition = condition_template.format(
                 var=var,
-                sign=cut.sign,
+                sign=condition.sign,
                 value=value,
             )
 
@@ -129,7 +129,7 @@ class Split:
         Parameters
         ----------
         mask_matrix : np.ndarray
-            Precomputed mask matrix for each cut.
+            Precomputed mask matrix for each condition.
 
         Returns
         -------
@@ -137,7 +137,7 @@ class Split:
             A boolean mask corresponding to the full split.
         """
 
-        mask = np.logical_and.reduce([mask_matrix[cut.id] for cut in self.cuts])
+        mask = np.logical_and.reduce([mask_matrix[condition.id] for condition in self.conditions])
 
         return mask
 
@@ -151,13 +151,13 @@ class Split:
             The inverse split with opposite signs and inverted logical operator.
         """
 
-        cuts = []
-        for cut_side1 in self.cuts:
-            cut = replace(cut_side1, sign=self.inverse_signs[cut_side1.sign])
-            cuts.append(cut)
+        conditions = []
+        for condition_side1 in self.conditions:
+            condition = replace(condition_side1, sign=self.inverse_signs[condition_side1.sign])
+            conditions.append(condition)
 
         inverse_split = Split(
-            cuts=cuts,
+            conditions=conditions,
             operator="|" if self.operator == "&" else "&",
         )
 

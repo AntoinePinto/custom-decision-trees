@@ -16,7 +16,7 @@ from custom_decision_trees.utils import (
     get_node_coordinates,
 )
 
-from .schemas import Cut, DecisionTreePrediction, Partition, Split, SplitEvaluation
+from .schemas import Condition, DecisionTreePrediction, Partition, Split, SplitEvaluation
 
 
 class DecisionTree(ABC):
@@ -32,49 +32,100 @@ class DecisionTree(ABC):
             min_samples_split: int | float = 2,
             min_samples_leaf: int | float = 2,
             max_features: Literal["sqrt", "log2"] | int | float | None = "sqrt",
-            nb_max_conditions_per_node: int = 1,
-            max_split_options_search_factor: int = 10,
-            nb_max_cut_options_per_var: int = 10,
-            nb_max_split_options_per_node: int | None = None,
+            max_thresholds_per_feature: int = 10,
+            max_conditions_per_split: int = 1,
+            max_splits_evaluated_per_node: int | None = None,
+            splits_search_budget_factor: int = 100,
             random_state: int | None = None,
             n_jobs: int = 1,
         ) -> None:
         """
         Custom Decision Tree classifier with support for different splitting metrics.
 
-        This implementation allows control over splitting criteria, depth, minimum
-        samples, feature sampling, and parallelization. It supports visualization
-        and prediction functionalities.
 
         Parameters
         ----------
         metric : MetricBase or None, default=None
-            The splitting metric to use. If None, defaults to Gini index.
+            Criterion used to evaluate the quality of a split (e.g. Gini impurity,
+            entropy, variance). If None, the child class is expected to define a
+            default metric. The metric must expose a `compute_metric(metric_data, mask)`
+            method returning a scalar score (higher = better split) along with an
+            optional metadata dictionary.
+
         max_depth : int, default=5
-            The maximum depth of the tree.
+            Maximum depth of the tree. At each depth level, every active partition
+            can be subdivided into two new child partitions. Increasing this value
+            raises the model's capacity but increases the risk of overfitting.
+
         min_samples_split : int or float, default=2
-            The minimum number of samples required to split a node. If float, represents
-            a fraction of the dataset.
+            Minimum number of samples required in a partition for a split to be
+            attempted. If int, refers to an absolute sample count. If float (strictly
+            between 0 and 1), refers to a fraction of the total dataset size (rounded
+            up, with a minimum of 1). This parameter prevents splitting nodes that are
+            already too small, before even evaluating any candidate split.
+
         min_samples_leaf : int or float, default=2
-            The minimum number of samples required at a leaf node. If float, represents
-            a fraction of the dataset.
-        max_features : str, int, float, or None, default='sqrt'
-            The number of features to consider when looking for the best split. Can be
-            'sqrt', 'log2', None, int or float.
-        nb_max_conditions_per_node : int, default=2
-            The maximum number of conditions per node.
-        max_split_options_search_factor : int, default=10
-            The factor to multiply the maximum number of split options by when searching
-            for valid splits in random sampling mode.
-        nb_max_cut_options_per_var : int, default=2
-            The maximum number of cut options to evaluate per variable.
-        nb_max_split_options_per_node
-            Maximum number of splits to be tested per node to avoid overly
-            long calculations in multi-condition mode
+            Minimum number of samples required in each of the two child partitions
+            resulting from a split for that split to be considered valid. Follows the
+            same int/float logic as `min_samples_split`. This parameter is more
+            restrictive than `min_samples_split`: it filters out splits that would
+            produce overly small leaves, regardless of the parent node size.
+
+        max_features : {"sqrt", "log2"} or int or float or None, default="sqrt"
+            Number of candidate features to consider when searching for the best split
+            at each node. A random subset is drawn at every node, introducing diversity
+            across nodes — particularly useful when used within a random forest.
+            - "sqrt"  : sqrt(n_features), commonly recommended for classification.
+            - "log2"  : log2(n_features).
+            - int     : absolute number of features to consider.
+            - float   : fraction of features (strictly between 0 and 1, rounded up).
+            - None    : all features are considered (no subsampling).
+
+        max_thresholds_per_feature : int, default=10
+            Maximum number of threshold values to evaluate per feature when building
+            split conditions. For numerical features, thresholds are evenly spaced
+            quantiles of the unique observed values. For categorical features, they
+            are drawn at random from the unique values. Lowering this value speeds up
+            training at the cost of a less exhaustive search over optimal thresholds.
+
+        max_conditions_per_split : int, default=1
+            Maximum number of conditions that can compose a single split. With the
+            default value of 1, each node applies a single rule (e.g. `x1 <= 3.5`),
+            which corresponds to the behaviour of a standard decision tree. Increasing
+            this value allows compound splits combining multiple conditions via a
+            logical `&` operator (e.g. `x1 <= 3.5 AND x2 > 1.0`), enabling more
+            complex decision boundaries. Note that the number of candidate combinations
+            grows exponentially with this parameter.
+
+        max_splits_evaluated_per_node : int or None, default=None
+            Maximum number of candidate splits to evaluate per node. If None, all
+            valid splits (i.e. all combinations of conditions up to
+            `max_conditions_per_split`) are evaluated exhaustively, which can become
+            computationally prohibitive when `max_conditions_per_split` > 1. If an
+            integer is provided, splits are sampled randomly until this quota is
+            reached or the search budget defined by `splits_search_budget_factor` is
+            exhausted.
+
+        splits_search_budget_factor : int, default=100
+            Multiplicative factor controlling the random search budget, active only
+            when `max_splits_evaluated_per_node` is set. The maximum number of random
+            draws attempted is `max_splits_evaluated_per_node *
+            splits_search_budget_factor`. If this budget is exhausted before enough
+            valid splits are found, training continues with however many splits were
+            collected. Increasing this factor improves the chances of finding
+            high-quality splits at the cost of a longer search time.
+
         random_state : int or None, default=None
-            Seed for reproducibility.
+            Seed for NumPy's random number generator, ensuring reproducibility of
+            results across runs. Affects feature subsampling, random threshold
+            selection for categorical features, and random split sampling when
+            `max_splits_evaluated_per_node` is set.
+
         n_jobs : int, default=1
-            Number of parallel jobs to run.
+            Number of parallel workers used when evaluating candidate splits (via
+            joblib). Set to -1 to use all available CPU cores. Most beneficial when
+            the number of candidate splits is large, i.e. on big datasets or when
+            `max_conditions_per_split` > 1.
         """
 
         self.metric = metric
@@ -107,10 +158,13 @@ class DecisionTree(ABC):
                 )
         self.max_features = max_features
 
-        self.nb_max_conditions_per_node = nb_max_conditions_per_node
-        self.nb_max_cut_options_per_var = nb_max_cut_options_per_var
-        self.nb_max_split_options_per_node = nb_max_split_options_per_node
-        self.max_split_options_search = nb_max_split_options_per_node * max_split_options_search_factor
+        self.max_conditions_per_split = max_conditions_per_split
+        self.max_thresholds_per_feature = max_thresholds_per_feature
+    
+        self.max_splits_evaluated_per_node = max_splits_evaluated_per_node
+        if max_splits_evaluated_per_node is not None:
+            self.max_split_options_search = max_splits_evaluated_per_node * splits_search_budget_factor
+    
         self.random_state = random_state
         np.random.seed(random_state)
         self.n_jobs = n_jobs
@@ -143,26 +197,26 @@ class DecisionTree(ABC):
         else:
             self.logger.setLevel(logging.WARNING)
 
-    def get_var_cut_options(
+    def get_var_condition_options(
             self,
             var: np.ndarray,
             col_type: type,
         ) -> np.ndarray:
         """
-        Compute candidate cut values for a variable.
+        Compute candidate condition values for a variable.
 
         Parameters
         ----------
         var : np.ndarray
-            The variable values for which to compute cut options.
+            The variable values for which to compute condition options.
 
         Returns
         -------
         values : np.ndarray
-            The candidate cut values.
+            The candidate condition values.
         """
 
-        max_options = self.nb_max_cut_options_per_var
+        max_options = self.max_thresholds_per_feature
 
         values = np.sort(np.unique(var))
         if col_type in [int, float, bool]:
@@ -177,15 +231,15 @@ class DecisionTree(ABC):
 
         return values
 
-    def get_available_cuts(
+    def get_available_conditions(
             self,
             X: np.ndarray,
             min_samples_leaf: int,
             max_features: int,
             tqdm_func: Callable = tqdm,
-        ) -> Tuple[List[Cut], np.ndarray]:
+        ) -> Tuple[List[Condition], np.ndarray]:
         """
-        Generate all valid cuts based on the data and constraints.
+        Generate all valid conditions based on the data and constraints.
 
         Parameters
         ----------
@@ -200,10 +254,10 @@ class DecisionTree(ABC):
 
         Returns
         -------
-        available_cuts : list of Cut
-            The list of valid cuts.
+        available_conditions : list of Condition
+            The list of valid conditions.
         mask_matrix : dict
-            A dictionary mapping cut IDs to boolean masks.
+            A dictionary mapping condition IDs to boolean masks.
         """
 
         features_sample = np.random.choice(
@@ -213,11 +267,11 @@ class DecisionTree(ABC):
         )
 
         i = 0
-        available_cuts: List[Cut] = []
+        available_conditions: List[Condition] = []
         mask_list = []
         for id in tqdm_func(
             features_sample,
-            desc="Finding Cuts - Looping over features",
+            desc="Finding Conditions - Looping over features",
             disable=not self.verbose,
         ):
 
@@ -230,7 +284,7 @@ class DecisionTree(ABC):
 
             col_type = list(col_types)[0]
 
-            var_values = self.get_var_cut_options(
+            var_values = self.get_var_condition_options(
                 var=X[:, id],
                 col_type=col_type,
             )
@@ -248,7 +302,7 @@ class DecisionTree(ABC):
                 nb_obs_left = int(np.sum(left_mask))
                 if nb_obs_left >= min_samples_leaf:
 
-                    cut = Cut(
+                    condition = Condition(
                         id=i,
                         var_id=int(id),
                         sign=side1_sign,
@@ -256,14 +310,14 @@ class DecisionTree(ABC):
                         nb_obs=nb_obs_left,
                     )
 
-                    available_cuts.append(cut)
+                    available_conditions.append(condition)
                     mask_list.append(left_mask)
                     i += 1
 
                 nb_obs_right = int(np.sum(~left_mask))
                 if nb_obs_right >= min_samples_leaf:
 
-                    cut = Cut(
+                    condition = Condition(
                         id=i,
                         var_id=int(id),
                         sign=side2_sign,
@@ -271,27 +325,27 @@ class DecisionTree(ABC):
                         nb_obs=nb_obs_right,
                     )
 
-                    available_cuts.append(cut)
+                    available_conditions.append(condition)
                     mask_list.append(~left_mask)
                     i += 1
 
         mask_matrix = np.stack(mask_list, axis=0)
 
-        return available_cuts, mask_matrix
+        return available_conditions, mask_matrix
 
     def get_nb_max_combis(
             self,
-            nb_available_cuts: int,
+            nb_available_conditions: int,
         ):
         """
         Compute the maximum number of possible split combinations given
-        the available cut options and the maximum number of conditions
+        the available condition options and the maximum number of conditions
         allowed per node.
 
         Parameters
         ----------
-        nb_available_cuts : int
-            The number of available cut options for splitting.
+        nb_available_conditions : int
+            The number of available condition options for splitting.
 
         Returns
         -------
@@ -300,8 +354,8 @@ class DecisionTree(ABC):
         """
 
         nb_split_options = 0
-        for k in range(1, self.nb_max_conditions_per_node + 1):
-            nb_split_options += math.comb(nb_available_cuts, k)
+        for k in range(1, self.max_conditions_per_split + 1):
+            nb_split_options += math.comb(nb_available_conditions, k)
 
         return nb_split_options
 
@@ -319,8 +373,8 @@ class DecisionTree(ABC):
         if nb_obs < min_samples_leaf:
             return False
 
-        if len(split.cuts) > 1:
-            if nb_obs in [cut.nb_obs for cut in split.cuts]:
+        if len(split.conditions) > 1:
+            if nb_obs in [condition.nb_obs for condition in split.conditions]:
                 return False
 
         return True
@@ -333,7 +387,7 @@ class DecisionTree(ABC):
             tqdm_func: Callable = tqdm,
         ) -> Tuple[List[Split], np.ndarray]:
         """
-        Generate split combinations from available cuts.
+        Generate split combinations from available conditions.
 
         Parameters
         ----------
@@ -351,12 +405,12 @@ class DecisionTree(ABC):
         split_options : list of Split
             The list of candidate split combinations.
         mask_matrix : dict
-            A dictionary mapping cut IDs to boolean masks.
+            A dictionary mapping condition IDs to boolean masks.
         """
 
-        max_size = self.nb_max_split_options_per_node
+        max_size = self.max_splits_evaluated_per_node
 
-        available_cuts, mask_matrix = self.get_available_cuts(
+        available_conditions, mask_matrix = self.get_available_conditions(
             X=X,
             min_samples_leaf=min_samples_leaf,
             max_features=max_features,
@@ -364,19 +418,19 @@ class DecisionTree(ABC):
         )
 
         if max_size is not None:
-            if max_size > self.get_nb_max_combis(len(available_cuts)):
+            if max_size > self.get_nb_max_combis(len(available_conditions)):
                 max_size = None
 
-        available_cuts_indices = list(range(len(available_cuts)))
+        available_conditions_indices = list(range(len(available_conditions)))
         self.logger.info("Generating split options...")
         split_options: List[Split] = []
         if max_size is None:
-            for k in range(1, self.nb_max_conditions_per_node + 1):
-                cut_combis = list(combinations(available_cuts_indices, k))
-                for cuts_indices in cut_combis:
+            for k in range(1, self.max_conditions_per_split + 1):
+                condition_combis = list(combinations(available_conditions_indices, k))
+                for conditions_indices in condition_combis:
 
                     split = Split(
-                        cuts=[available_cuts[i] for i in cuts_indices],
+                        conditions=[available_conditions[i] for i in conditions_indices],
                         operator="&",
                     )
 
@@ -384,8 +438,8 @@ class DecisionTree(ABC):
                         split_options.append(split)
         else:
 
-            k_options = list(range(1, self.nb_max_conditions_per_node + 1))
-            weights = [math.comb(len(available_cuts), k) for k in k_options]
+            k_options = list(range(1, self.max_conditions_per_split + 1))
+            weights = [math.comb(len(available_conditions), k) for k in k_options]
 
             pbar = tqdm_func(
                 desc="Finding valid splits",
@@ -398,10 +452,10 @@ class DecisionTree(ABC):
             while len(split_options) < max_size:
 
                 k = random.choices(k_options, weights=weights, k=1)[0] # noqa: S311
-                cuts_indices = random.sample(available_cuts_indices, k=k)
+                conditions_indices = random.sample(available_conditions_indices, k=k)
 
                 split = Split(
-                    cuts=[available_cuts[i] for i in cuts_indices],
+                    conditions=[available_conditions[i] for i in conditions_indices],
                     operator="&",
                 )
 
@@ -414,8 +468,8 @@ class DecisionTree(ABC):
                     self.logger.info(
                         f"Maximum number of {nb_searchs} searchs reached while"
                         f" looking for valid splits. Found {len(split_options)}"
-                        f" valid splits out of {max_size}(`nb_max_split_options_per_node`) required."
-                        f" Consider increasing `max_split_options_search_factor`"
+                        f" valid splits out of {max_size}(`max_splits_evaluated_per_node`) required."
+                        f" Consider increasing `splits_search_budget_factor`"
                     )
                     break
 
@@ -478,7 +532,7 @@ class DecisionTree(ABC):
         split_options : list of Split
             The candidate splits.
         mask_matrix : dict
-            Masks for each cut.
+            Masks for each condition.
         metric_data : np.ndarray
             Data used for metric computation.
         min_samples_leaf : int

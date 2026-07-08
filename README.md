@@ -42,8 +42,8 @@ Example of multi-condition splitting on the Titanic dataset:
 *   Supports multiclass classification
 *   Supports standard decision tree parameters (max_depth, min_samples_split, max_features, n_estimators, etc.)
 *   Supports STRING type explanatory variables
-*   Ability to control the number of variable splitting options when optimizing a split (i.e `nb_max_cut_options_per_var` parameter).
-*   Ability to control the maximum number of splits to be tested per node to avoid overly long calculations in multi-condition mode (i.e `nb_max_split_options_per_node` parameters)
+*   Ability to control the number of variable splitting options when optimizing a split (i.e `max_thresholds_per_feature` parameter).
+*   Ability to control the maximum number of splits to be tested per node to avoid overly long calculations in multi-condition mode (i.e `max_splits_evaluated_per_node` parameters)
 *   Possibility of parallelizing calculations (i.e `n_jobs` parameters)
 
 ## Reminder on splitting criteria
@@ -143,7 +143,7 @@ gini = Gini()
 decision_tree = DecisionTreeClassifier(
     metric=gini,
     max_depth=2,
-    nb_max_conditions_per_node=2 # Set to 1 for a traditional decision tree
+    max_conditions_per_split=2 # Set to 1 for a traditional decision tree
 )
 
 decision_tree.fit(
@@ -210,7 +210,7 @@ random_forest = RandomForest(
     metric=gini,
     n_estimators=10,
     max_depth=2,
-    nb_max_conditions_per_node=2,
+    max_conditions_per_split=2,
 )
 
 random_forest.fit(
@@ -237,8 +237,8 @@ decision_tree_regressor = DecisionTreeRegressor(
     min_samples_split=2,
     min_samples_leaf=1,
     max_features=None,
-    nb_max_conditions_per_node=2,
-    nb_max_cut_options_per_var=10,
+    max_conditions_per_split=2,
+    max_thresholds_per_feature=10,
     n_jobs=1
 )
 

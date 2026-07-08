@@ -19,9 +19,9 @@ class DecisionTreeRegressor(DecisionTree):
             min_samples_split: int | float = 2,
             min_samples_leaf: int | float = 2,
             max_features: Literal["sqrt", "log2"] | int | float | None = "sqrt",
-            nb_max_conditions_per_node: int = 1,
-            nb_max_cut_options_per_var: int = 10,
-            nb_max_split_options_per_node: int | None = None,
+            max_conditions_per_split: int = 1,
+            max_thresholds_per_feature: int = 10,
+            max_splits_evaluated_per_node: int | None = None,
             random_state: int | None = None,
             n_jobs: int = 1,
         ) -> None:
@@ -47,11 +47,11 @@ class DecisionTreeRegressor(DecisionTree):
         max_features : str, int, float, or None, default='sqrt'
             The number of features to consider when looking for the best split. Can be
             'sqrt', 'log2', None, int or float.
-        nb_max_conditions_per_node : int, default=2
+        max_conditions_per_split : int, default=2
             The maximum number of conditions per node.
-        nb_max_cut_options_per_var : int, default=2
-            The maximum number of cut options to evaluate per variable.
-        nb_max_split_options_per_node
+        max_thresholds_per_feature : int, default=2
+            The maximum number of condition options to evaluate per variable.
+        max_splits_evaluated_per_node
             Maximum number of splits to be tested per node to avoid overly long
             calculations in multi-condition mode
         random_state : int or None, default=None
@@ -69,9 +69,9 @@ class DecisionTreeRegressor(DecisionTree):
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
             max_features=max_features,
-            nb_max_conditions_per_node=nb_max_conditions_per_node,
-            nb_max_cut_options_per_var=nb_max_cut_options_per_var,
-            nb_max_split_options_per_node=nb_max_split_options_per_node,
+            max_conditions_per_split=max_conditions_per_split,
+            max_thresholds_per_feature=max_thresholds_per_feature,
+            max_splits_evaluated_per_node=max_splits_evaluated_per_node,
             random_state=random_state,
             n_jobs=n_jobs,
         )

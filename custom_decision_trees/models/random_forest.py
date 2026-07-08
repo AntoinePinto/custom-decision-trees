@@ -27,9 +27,9 @@ class RandomForest(ABC):
             min_samples_split: int | float = 2,
             min_samples_leaf: int | float = 2,
             max_features: str | int | None = "sqrt",
-            nb_max_conditions_per_node = 2,
-            nb_max_cut_options_per_var = 2,
-            nb_max_split_options_per_node: int | None = None,
+            max_conditions_per_split = 2,
+            max_thresholds_per_feature = 2,
+            max_splits_evaluated_per_node: int | None = None,
             bootstrap: bool = True,
             max_samples: int | float | None = None,
             random_state: int | None = None,
@@ -56,11 +56,11 @@ class RandomForest(ABC):
         max_features : {'sqrt', 'log2'} or int or float or None, default='sqrt'
             The number of features to consider when looking for the best split.
             If float, represents a fraction of the number of features.
-        nb_max_conditions_per_node : int, default=2
+        max_conditions_per_split : int, default=2
             The maximum number of conditions combined per decision node (via AND).
-        nb_max_cut_options_per_var : int, default=2
-            The maximum number of cut options to evaluate per variable.
-        nb_max_split_options_per_node
+        max_thresholds_per_feature : int, default=2
+            The maximum number of condition options to evaluate per variable.
+        max_splits_evaluated_per_node
             Maximum number of splits to be tested per node to avoid overly long
             calculations in multi-condition mode
         bootstrap : bool, default=True
@@ -81,8 +81,8 @@ class RandomForest(ABC):
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
         self.max_features = max_features
-        self.nb_max_conditions_per_node = nb_max_conditions_per_node
-        self.nb_max_cut_options_per_var = nb_max_cut_options_per_var
+        self.max_conditions_per_split = max_conditions_per_split
+        self.max_thresholds_per_feature = max_thresholds_per_feature
         self.bootstrap = bootstrap
 
         if isinstance(max_samples, float):
