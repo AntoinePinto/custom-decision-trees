@@ -1,6 +1,7 @@
 from typing import Callable
 
 import numpy as np
+from tqdm import tqdm
 
 from custom_decision_trees import DecisionTreeClassifier
 from custom_decision_trees.metrics import MetricBase
@@ -89,7 +90,8 @@ class RandomForestClassifier(RandomForest):
             metric_data: np.ndarray,
             max_samples: int,
             batch_size: int = 1000,
-            tqdm_func: Callable = None,
+            tqdm_func: Callable = tqdm,
+            verbose: bool = False,
         ) -> DecisionTreeClassifier:
         """
         Train a single decision tree on a bootstrapped subset of the data.
@@ -108,6 +110,8 @@ class RandomForestClassifier(RandomForest):
             Batch size for parallel evaluations.
         tqdm_func : callable, optional
             Progress bar utility (e.g., `tqdm`).
+        verbose : bool, default=False
+            Whether to print additional information during training.
 
         Returns
         -------
@@ -142,6 +146,7 @@ class RandomForestClassifier(RandomForest):
             classes=self.classes,
             batch_size=batch_size,
             tqdm_func=tqdm_func,
+            verbose=verbose,
         )
 
         return decision_tree
@@ -152,7 +157,8 @@ class RandomForestClassifier(RandomForest):
             y: np.ndarray,
             metric_data: np.ndarray,
             batch_size: int = 1000,
-            tqdm_func: Callable | None = None,
+            tqdm_func: Callable = tqdm,
+            verbose: bool = False,
         ) -> None:
         """
         Fit the random forest classifier.
@@ -169,6 +175,8 @@ class RandomForestClassifier(RandomForest):
             Batch size for parallel evaluation.
         tqdm_func : callable, optional
             Optional progress bar function.
+        verbose : bool, default=False
+            Whether to print additional information during training.
 
         Raises
         ------
@@ -184,6 +192,7 @@ class RandomForestClassifier(RandomForest):
             metric_data=metric_data,
             batch_size=batch_size,
             tqdm_func=tqdm_func,
+            verbose=verbose,
         )
 
     def predict_proba(

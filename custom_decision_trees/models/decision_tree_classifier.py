@@ -1,6 +1,7 @@
 from typing import Callable, List, Literal
 
 import numpy as np
+from tqdm import tqdm
 
 from custom_decision_trees.metrics import Gini, MetricBase
 from custom_decision_trees.models.decision_tree import DecisionTree
@@ -104,7 +105,8 @@ class DecisionTreeClassifier(DecisionTree):
             y: np.ndarray,
             metric_data: np.ndarray,
             batch_size: int = 1000,
-            tqdm_func: Callable | None = None,
+            tqdm_func: Callable = tqdm,
+            verbose: bool = False,
             classes: np.ndarray | None = None,
         ) -> None:
         """
@@ -124,6 +126,8 @@ class DecisionTreeClassifier(DecisionTree):
             Batch size for parallel computation of split evaluations.
         tqdm_func : callable or None, default=None
             Optional progress bar function.
+        verbose : bool, default=False
+            If True, print verbose output during fitting.
         """
 
         self.classes = np.unique(y) if classes is None else classes
@@ -134,6 +138,7 @@ class DecisionTreeClassifier(DecisionTree):
             metric_data=metric_data,
             batch_size=batch_size,
             tqdm_func=tqdm_func,
+            verbose=verbose,
         )
 
     def predict_proba(

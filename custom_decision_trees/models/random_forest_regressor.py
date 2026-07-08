@@ -1,6 +1,7 @@
 from typing import Callable
 
 import numpy as np
+from tqdm import tqdm
 
 from custom_decision_trees import DecisionTreeRegressor
 from custom_decision_trees.metrics import MetricBase
@@ -89,7 +90,8 @@ class RandomForestRegressor(RandomForest):
             metric_data: np.ndarray,
             max_samples: int,
             batch_size: int = 1000,
-            tqdm_func: Callable = None,
+            tqdm_func: Callable = tqdm,
+            verbose: bool = False,
         ) -> DecisionTreeRegressor:
         """
         Train a single decision tree on a bootstrapped subset of the data.
@@ -108,6 +110,8 @@ class RandomForestRegressor(RandomForest):
             Batch size for parallel evaluations.
         tqdm_func : callable, optional
             Progress bar utility (e.g., `tqdm`).
+        verbose : bool, default=False
+            Whether to print additional information during training.
 
         Returns
         -------
@@ -141,6 +145,7 @@ class RandomForestRegressor(RandomForest):
             metric_data=metric_data[observations_sample],
             batch_size=batch_size,
             tqdm_func=tqdm_func,
+            verbose=verbose,
         )
 
         return decision_tree

@@ -4,6 +4,7 @@ from typing import Callable, Dict, List
 
 import numpy as np
 from joblib import Parallel, delayed
+from tqdm import tqdm
 
 from custom_decision_trees.metrics import MetricBase
 from custom_decision_trees.models.decision_tree import DecisionTree
@@ -131,7 +132,8 @@ class RandomForest(ABC):
             metric_data: np.ndarray,
             max_samples: int,
             batch_size: int = 1000,
-            tqdm_func: Callable = None,
+            tqdm_func: Callable = tqdm,
+            verbose: bool = False,
         ) -> DecisionTree:
         """
         Train a single decision tree on a bootstrapped subset of the data.
@@ -150,6 +152,8 @@ class RandomForest(ABC):
             Batch size for parallel evaluations.
         tqdm_func : callable, optional
             Progress bar utility (e.g., `tqdm`).
+        verbose : bool, default=False
+            Whether to print additional information during training.
 
         Returns
         -------
@@ -165,7 +169,8 @@ class RandomForest(ABC):
             y: np.ndarray,
             metric_data: np.ndarray,
             batch_size: int = 1000,
-            tqdm_func: Callable | None = None,
+            tqdm_func: Callable = tqdm,
+            verbose: bool = False,
         ) -> None:
         """
         Fit the random forest classifier.
@@ -182,6 +187,8 @@ class RandomForest(ABC):
             Batch size for parallel evaluation.
         tqdm_func : callable, optional
             Optional progress bar function.
+        verbose : bool, default=False
+            Whether to print additional information during training.
 
         Raises
         ------
@@ -207,6 +214,7 @@ class RandomForest(ABC):
                 max_samples=max_samples,
                 batch_size=batch_size,
                 tqdm_func=tqdm_func,
+                verbose=verbose,
             )
 
             tasks.append(task)
@@ -218,13 +226,13 @@ class RandomForest(ABC):
             backend="threading",
         )
 
-        if tqdm_func is None:
-            items = parallel(tasks)
-        else:
-            items = tqdm_func(parallel(tasks), desc="Forest Building", total=len(tasks))
-
         self.forest = []
-        for decision_tree in items:
+        for decision_tree in tqdm_func(
+            parallel(tasks),
+            desc="Forest Building",
+            total=len(tasks),
+            disable=not verbose,
+        ):
             self.forest.append(decision_tree)
 
     def predict_x(

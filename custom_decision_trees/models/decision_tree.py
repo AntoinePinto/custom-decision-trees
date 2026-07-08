@@ -1,3 +1,4 @@
+import logging
 import math
 import random
 from abc import ABC, abstractmethod
@@ -7,6 +8,7 @@ from typing import Callable, Dict, List, Literal, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 from joblib import Parallel, delayed
+from tqdm import tqdm
 
 from custom_decision_trees.metrics import MetricBase
 from custom_decision_trees.utils import (
@@ -108,6 +110,34 @@ class DecisionTree(ABC):
         np.random.seed(random_state)
         self.n_jobs = n_jobs
 
+    def set_logger(
+            self,
+            verbose: bool = False,
+        ) -> None:
+        """
+        Set up the logger for the decision tree.
+
+        Parameters
+        ----------
+        verbose : bool, default=False
+            Whether to enable verbose logging.
+        """
+
+        self.verbose = verbose
+
+        self.logger = logging.getLogger(__name__)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(levelname)s: %(message)s")
+        handler.setFormatter(formatter)
+
+        if not self.logger.handlers:
+            self.logger.addHandler(handler)
+
+        if self.verbose:
+            self.logger.setLevel(logging.INFO)
+        else:
+            self.logger.setLevel(logging.WARNING)
+
     def get_var_cut_options(
             self,
             var: np.ndarray,
@@ -147,6 +177,7 @@ class DecisionTree(ABC):
             X: np.ndarray,
             min_samples_leaf: int,
             max_features: int,
+            tqdm_func: Callable = tqdm,
         ) -> Tuple[List[Cut], np.ndarray]:
         """
         Generate all valid cuts based on the data and constraints.
@@ -159,6 +190,8 @@ class DecisionTree(ABC):
             Minimum required samples in a leaf.
         max_features : int
             Number of features to consider for splitting.
+        tqdm_func : callable, default=tqdm
+            Progress bar function.
 
         Returns
         -------
@@ -177,7 +210,11 @@ class DecisionTree(ABC):
         i = 0
         available_cuts: List[Cut] = []
         mask_list = []
-        for id in features_sample:
+        for id in tqdm_func(
+            features_sample,
+            desc="Finding Cuts - Looping over features",
+            disable=not self.verbose,
+        ):
 
             col_types = set(type(x) for x in X[:, id].tolist())
             if len(col_types) > 1:
@@ -280,7 +317,7 @@ class DecisionTree(ABC):
         if len(split.cuts) > 1:
             if nb_obs in [cut.nb_obs for cut in split.cuts]:
                 return False
-            
+
         return True
 
     def get_split_options(
@@ -288,6 +325,7 @@ class DecisionTree(ABC):
             X: np.ndarray,
             min_samples_leaf: int,
             max_features: int,
+            tqdm_func: Callable = tqdm,
         ) -> Tuple[List[Split], np.ndarray]:
         """
         Generate split combinations from available cuts.
@@ -300,6 +338,8 @@ class DecisionTree(ABC):
             Minimum required samples in a leaf.
         max_features : int
             Number of features to consider for splitting.
+        tqdm_func : callable, default=tqdm
+            Progress bar function.
 
         Returns
         -------
@@ -315,6 +355,7 @@ class DecisionTree(ABC):
             X=X,
             min_samples_leaf=min_samples_leaf,
             max_features=max_features,
+            tqdm_func=tqdm_func,
         )
 
         if max_size is not None:
@@ -322,6 +363,7 @@ class DecisionTree(ABC):
                 max_size = None
 
         available_cuts_indices = list(range(len(available_cuts)))
+        self.logger.info("Generating split options...")
         split_options: List[Split] = []
         if max_size is None:
             for k in range(1, self.nb_max_conditions_per_node + 1):
@@ -336,13 +378,18 @@ class DecisionTree(ABC):
                     if self.is_valid_split(split, mask_matrix, min_samples_leaf):
                         split_options.append(split)
         else:
-            
+
             k_options = list(range(1, self.nb_max_conditions_per_node + 1))
             weights = [math.comb(len(available_cuts), k) for k in k_options]
 
+            pbar = tqdm_func(
+                desc="Finding valid splits",
+                total=max_size,
+                disable=not self.verbose,
+            )
             while len(split_options) < max_size:
-                
-                k = random.choices(k_options, weights=weights, k=1)[0]
+
+                k = random.choices(k_options, weights=weights, k=1)[0] # noqa: S311
                 cuts_indices = random.sample(available_cuts_indices, k=k)
 
                 split = Split(
@@ -352,6 +399,9 @@ class DecisionTree(ABC):
 
                 if self.is_valid_split(split, mask_matrix, min_samples_leaf):
                     split_options.append(split)
+                    pbar.update(1)
+
+            pbar.close()
 
         return split_options, mask_matrix
 
@@ -400,7 +450,7 @@ class DecisionTree(ABC):
             mask_matrix: np.ndarray,
             metric_data: np.ndarray,
             batch_size: int = 1000,
-            tqdm_func: Callable | None = None,
+            tqdm_func: Callable = tqdm,
         ) -> List[SplitEvaluation]:
         """
         Evaluate multiple splits in parallel.
@@ -417,8 +467,8 @@ class DecisionTree(ABC):
             Minimum required samples in a leaf.
         batch_size : int, default=1000
             Number of splits to evaluate per batch.
-        tqdm_func : callable or None, default=None
-            Optional progress bar function.
+        tqdm_func : callable, default=tqdm
+            Progress bar function.
 
         Returns
         -------
@@ -446,17 +496,13 @@ class DecisionTree(ABC):
             backend="loky",
         )
 
-        if tqdm_func is None:
-            items = parallel(tasks)
-        else:
-            items = tqdm_func(
-                parallel(tasks),
-                desc="Split Evalutation",
-                total=len(tasks)
-            )
-
         split_evaluations = []
-        for future in items:
+        for future in tqdm_func(
+            parallel(tasks),
+            desc="Split Evalutation",
+            total=len(tasks),
+            disable=not self.verbose,
+        ):
             split_evaluations.append(future)
 
         return split_evaluations
@@ -592,7 +638,8 @@ class DecisionTree(ABC):
             y: np.ndarray,
             metric_data: np.ndarray,
             batch_size: int = 1000,
-            tqdm_func: Callable | None = None,
+            tqdm_func: Callable = tqdm,
+            verbose: bool = False,
         ) -> None:
         """
         Fit the decision tree classifier on the provided data.
@@ -609,9 +656,13 @@ class DecisionTree(ABC):
             List of possible classes
         batch_size : int, default=1000
             Batch size for parallel computation of split evaluations.
-        tqdm_func : callable or None, default=None
-            Optional progress bar function.
+        tqdm_func : callable, default=tqdm
+            Progress bar function.
+        verbose : bool, default=False
+            Whether to enable verbose logging.
         """
+
+        self.set_logger(verbose=verbose)
 
         min_samples_split = self.get_min_samples(param=self.min_samples_split, X=X)
         min_samples_leaf = self.get_min_samples(param=self.min_samples_leaf, X=X)
@@ -623,12 +674,11 @@ class DecisionTree(ABC):
             metric_data=metric_data,
         )
 
-        if tqdm_func is None:
-            items = range(self.max_depth)
-        else:
-            items = tqdm_func(range(self.max_depth), desc="Depth")
-
-        for depth in items:
+        for depth in tqdm_func(
+            range(self.max_depth),
+            desc="Depth",
+            disable=not self.verbose
+        ):
             for partition_id, partition in dict(self.partitions).items():
 
                 # Skip iteration if the partition does not concerns the active depth
@@ -644,7 +694,7 @@ class DecisionTree(ABC):
                     min_samples_leaf=min_samples_leaf,
                     max_features=max_features,
                 )
-                
+
                 # Skip iteration if no valid split options has been found
                 if len(split_options) == 0:
                     continue
