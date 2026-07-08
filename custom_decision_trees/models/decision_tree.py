@@ -128,16 +128,16 @@ class DecisionTree(ABC):
             The candidate cut values.
         """
 
-        nb_max = self.nb_max_cut_options_per_var
+        max_options = self.nb_max_cut_options_per_var
 
         values = np.sort(np.unique(var))
         if col_type in [int, float, bool]:
             values = values[:-1]
-            if len(values) > nb_max:
-                values = np.quantile(values, [i/nb_max for i in range(nb_max)])
+            if len(values) > max_options:
+                values = np.quantile(values, [i/max_options for i in range(max_options)])
         elif col_type in [str]:
-            if len(values) > nb_max:
-                values = np.random.choice(np.unique(var), nb_max, replace=False)
+            if len(values) > max_options:
+                values = np.random.choice(np.unique(var), max_options, replace=False)
         else:
             raise Exception(f"Unsupported column type: {col_type}")
 
